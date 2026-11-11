@@ -1,0 +1,95 @@
+name: Test and publish to npm
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Test, build and pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      dist-tag: ${{ steps.version.outputs.dist-tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Check release version
+        id: version
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, appendFileSync } from 'node:fs'
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'))
+          if (pkg.version !== lock.version || pkg.version !== lock.packages[''].version) {
+            throw new Error('package.json and package-lock.json versions must match')
+          }
+          if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== 'v' + pkg.version) {
+            throw new Error('Release tag must equal v' + pkg.version)
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, 'dist-tag=' + (pkg.version.includes('-') ? 'next' : 'latest') + '\n')
+          NODE
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build and inspect package
+        run: |
+          npm run build
+          npm pack --ignore-scripts --json > "$RUNNER_TEMP/npm-pack.json"
+          node scripts/check-package.mjs "$RUNNER_TEMP/npm-pack.json" "$RUNNER_TEMP/npm-package"
+
+      - name: Save verified package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-package
+          path: ${{ runner.temp }}/npm-package/package.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish verified package
+    needs: verify
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-package
+          path: npm-package
+
+      - name: Publish with npm trusted publishing
+        env:
+          NPM_DIST_TAG: ${{ needs.verify.outputs.dist-tag }}
+        run: npm publish ./npm-package/package.tgz --ignore-scripts --provenance --access public --tag "$NPM_DIST_TAG"

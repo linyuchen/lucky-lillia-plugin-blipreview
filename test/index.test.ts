@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { h } from '@luckylillia/plugin-sdk'
+import { h, Service, type Context } from '@luckylillia/plugin-sdk'
+import { loadImage } from '@napi-rs/canvas'
 import { createTestApp, type TestApp } from '@luckylillia/plugin-sdk/testing'
-import * as Provider from 'lucky-lillia-aiprovider'
+import type { AiService } from '../src/ai.js'
 import * as plugin from '../src/index.js'
+import * as renderer from '../src/render.js'
 import { BVID, OTHER_BVID, VIDEO, fakeBili, json, solidPng } from './fixtures.js'
 
 let app: TestApp
 let fake: ReturnType<typeof fakeBili>
 
 beforeEach(async () => { fake = fakeBili(); app = await createTestApp() })
-afterEach(async () => { await app.dispose(); vi.unstubAllGlobals() })
+afterEach(async () => { await app.dispose(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 const setup = (config: Partial<plugin.Config> = {}) => app.ctx.plugin(plugin, config)
 const views = () => fake.calls.filter(call => call.url.pathname.endsWith('/view'))
@@ -18,8 +20,22 @@ const miniapp = (fields: Record<string, string>) => h('luckylillia:ark', { data:
 }) }).toString()
 
 async function addAi() {
-  await app.ctx.plugin(Provider, { ais: [{ name: 'test-ai', baseUrl: 'https://ai.example.test/v1', apiKey: 'ai-test-key', models: ['summary-model'] }] })
+  const chat = vi.fn<AiService['chat']>(async () => ({ text: '视频介绍了星空摄影的准备工作。' }))
+  class TestAiService extends Service implements AiService {
+    constructor(ctx: Context) { super(ctx, 'ai') }
+    get(name?: string) { return !name || name === 'test-ai' ? { name: 'test-ai' } : undefined }
+    chat = chat
+  }
+  await app.ctx.plugin(TestAiService)
   await vi.waitFor(() => expect(app.ctx.get('ai')).toBeTruthy())
+  return chat
+}
+
+async function previewImage(content: string) {
+  const [image] = h.parse(content)
+  expect(image.type).toBe('img')
+  expect(image.attrs.src).toMatch(/^data:image\/png;base64,/)
+  return loadImage(Buffer.from(image.attrs.src.split(',')[1], 'base64'))
 }
 
 describe('messages, commands and rendering', () => {
@@ -31,9 +47,13 @@ describe('messages, commands and rendering', () => {
     const replies = await bot.receive('看看这个 ' + BVID)
     expect(replies).toHaveLength(1)
     expect(replies[0]).toContain(VIDEO.title)
-    expect(replies[0]).toContain('播放 12\\.3万')
-    expect(replies[0]).toContain('弹幕 42')
+    expect(replies[0]).toContain('<img ')
+    expect(replies[0]).not.toContain('播放 12\\.3万')
+    expect(replies[0]).not.toContain('弹幕 42')
+    expect(replies[0]).not.toContain('UP：')
     expect(replies[0]).toContain('点赞 678')
+    expect(replies[0]).toContain('投币 123')
+    expect(replies[0]).toContain('收藏 345')
     expect(replies[0]).toContain('https://www.bilibili.com/video/' + BVID)
     expect(seen).toBe(1)
     expect(await bot.receive('普通聊天')).toEqual([])
@@ -60,29 +80,58 @@ describe('messages, commands and rendering', () => {
     expect(await bot.receive('/bili ' + BVID)).toEqual([])
   })
 
-  it('uses a PNG card on NTQQ and host markdown on a capable official bot', async () => {
+  it('uses a full PNG on NTQQ and a composed cover with Markdown on capable official bots', async () => {
     await setup()
     const nt = app.bot({ platform: 'luckylillia' })
     const official = app.bot({ platform: 'qq', features: ['message.markdown'] })
     const images = await nt.receive(BVID)
     expect(images[0]).toMatch(/^<img src="data:image\/png;base64,/)
     expect(images[0]).toContain('\nhttps://www.bilibili.com/video/' + BVID)
+    const card = await previewImage(images[0])
+    expect(card.width).toBe(560)
+    expect(card.height).toBeGreaterThan(395)
     const markdown = (await official.receive('<at id="bot"/> ' + BVID, { guildId: 'group' }))[0]
-    expect(markdown).toMatch(/^<markdown>/)
-    expect(markdown).toContain('![封面 #560px #315px]')
+    expect(h.parse(markdown).map(element => element.type)).toEqual(['img', 'markdown'])
+    const cover = await previewImage(markdown)
+    expect([cover.width, cover.height]).toEqual([560, 395])
+    expect(markdown).not.toContain(VIDEO.pic)
+    expect(markdown).not.toContain('![封面')
     expect(markdown).not.toContain('qq:rawmarkdown')
     expect(fake.calls.find(call => call.url.hostname === 'i0.hdslb.com')?.headers.has('cookie')).toBe(false)
   })
 
-  it('escapes remote titles/markdown and includes video statistics', async () => {
+  it('escapes remote Markdown and keeps statistics not already drawn in the image', async () => {
     fake.video.title = '标题 <at id="all"/> [假链接](https://evil.test)'
     await setup()
     const content = (await app.bot({ features: ['message.markdown'] }).receive(BVID))[0]
     expect(content).toContain('\\&lt;at')
     expect(content).toContain('\\[假链接\\]')
     expect(content).not.toContain('<at id=')
+    expect(content).not.toContain('播放 12\\.3万')
+    expect(content).not.toContain('弹幕 42')
+    expect(content).toContain('点赞 678')
+  })
+
+  it('still sends a composed cover with metadata when the cover CDN is unavailable', async () => {
+    fake.route = call => call.url.hostname === 'i0.hdslb.com' ? new Response(null, { status: 503 }) : undefined
+    await setup()
+    const content = (await app.bot({ features: ['message.markdown'] }).receive(BVID))[0]
+    const cover = await previewImage(content)
+    expect([cover.width, cover.height]).toEqual([560, 395])
+    expect(content).toContain(VIDEO.title)
+    expect(content).not.toContain('UP：')
+  })
+
+  it('restores UP and playback statistics to Markdown if image rendering fails', async () => {
+    vi.spyOn(renderer, 'renderCover').mockRejectedValueOnce(new Error('canvas unavailable'))
+    await setup()
+    const content = (await app.bot({ features: ['message.markdown'] }).receive(BVID))[0]
+    expect(content).toMatch(/^<markdown>/)
+    expect(content).toContain(VIDEO.pic)
+    expect(content).toContain('UP：测试 UP')
     expect(content).toContain('播放 12\\.3万')
     expect(content).toContain('弹幕 42')
+    expect(content).toContain('时长 3:26')
     expect(content).toContain('点赞 678')
   })
 
@@ -211,14 +260,14 @@ describe('summaries via the optional AI service', () => {
     await setup({ summaryMode: 'llm', cacheDuration: 0, model: { ai: 'test-ai', model: 'summary-model' }, cookie: 'SESSDATA=bili-secret' })
     const bot = app.bot({ features: ['message.markdown'] })
     expect((await bot.receive(BVID))[0]).toContain('请先配置并启用 AI 服务')
-    await addAi()
+    const chat = await addAi()
     const response = (await bot.receive(BVID))[0]
     expect(response).toContain('视频介绍了星空摄影的准备工作。')
-    const request = fake.calls.find(call => call.url.hostname === 'ai.example.test')!
-    expect(request.headers.get('authorization')).toBe('Bearer ai-test-key')
-    expect(request.headers.has('cookie')).toBe(false)
-    expect(request.body.model).toBe('summary-model')
-    expect(request.body.messages[1].content).toContain('三脚架')
+    expect(chat).toHaveBeenCalledTimes(1)
+    const [messages, options] = chat.mock.calls[0]
+    expect(options).toEqual({ ai: 'test-ai', model: 'summary-model', signal: expect.any(AbortSignal) })
+    expect(messages[1].content).toContain('三脚架')
+    expect(JSON.stringify(messages)).not.toContain('bili-secret')
     expect(fake.calls.find(call => call.url.hostname === 'aisubtitle.hdslb.com')?.headers.has('cookie')).toBe(false)
     expect(fake.calls.find(call => call.url.pathname.endsWith('/player/wbi/v2'))?.url.searchParams.has('w_rid')).toBe(true)
   })

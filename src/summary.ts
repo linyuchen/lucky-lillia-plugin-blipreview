@@ -1,8 +1,8 @@
-import type { AiProvider } from 'lucky-lillia-aiprovider'
+import type { AiService } from './ai.js'
 import type { BiliClient, VideoInfo } from './api.js'
 import type { Config } from './config.js'
 
-export async function buildSummary(client: BiliClient, info: VideoInfo, config: Config, ai?: AiProvider): Promise<string> {
+export async function buildSummary(client: BiliClient, info: VideoInfo, config: Config, ai?: AiService): Promise<string> {
   if (config.summaryMode === 'none') return ''
   if (config.summaryMode === 'official') {
     const summary = await client.officialSummary(info)

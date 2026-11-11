@@ -18,7 +18,7 @@ beforeEach(async () => {
   fake = fakeBili()
   app = await createTestApp()
 })
-afterEach(async () => { await web?.dispose(); await app.dispose(); vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(async () => { await web?.dispose(); await credentials?.settled(); await app.dispose(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 async function setup() {
   return app.ctx.plugin({
@@ -28,6 +28,7 @@ async function setup() {
       const controller = new AbortController()
       ctx.effect(() => () => controller.abort())
       credentials = new CredentialStore(ctx.storage, config.account, config)
+      ctx.effect(() => () => credentials.settled())
       const client = new BiliClient(ctx.http, credentials, controller.signal)
       const refresher = new CookieRefresher(ctx, client, credentials)
       web = new WebLogin(ctx, client, credentials, config, registerLogin(ctx, client, credentials, config), refresher)

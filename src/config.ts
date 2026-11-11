@@ -1,5 +1,5 @@
 import { Schema } from '@luckylillia/plugin-sdk'
-import type { AiModelSelection } from 'lucky-lillia-aiprovider'
+import type { AiModelSelection } from './ai.js'
 
 export interface Config {
   cacheDuration: number

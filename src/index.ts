@@ -1,5 +1,5 @@
 import { h, type Context, type Session } from '@luckylillia/plugin-sdk'
-import type { AiProvider } from 'lucky-lillia-aiprovider'
+import type { AiService } from './ai.js'
 import { BiliClient, errorSummary, type VideoInfo, type VideoSearchCandidate } from './api.js'
 import { Config } from './config.js'
 import { CredentialStore } from './credentials.js'
@@ -7,7 +7,7 @@ import { registerLogin } from './login.js'
 import { registerWebLogin } from './web-login.js'
 import { registerAutoRefresh } from './refresh.js'
 import { extractReference, messageInput, pickExactTitleCandidates, type BiliCard, type VideoReference } from './parser.js'
-import { formatMarkdown, formatText, matchCover, pageUrl, renderCard } from './render.js'
+import { formatMarkdown, formatText, matchCover, pageUrl, renderCard, renderCover } from './render.js'
 import { buildSummary } from './summary.js'
 
 export { Config }
@@ -33,9 +33,9 @@ export function apply(ctx: Context, config: Config): void {
   })
   credentials.ready.catch(error => logger.warn('读取 B站登录档案失败：%s', errorSummary(error)))
 
-  let ai: AiProvider | undefined
+  let ai: AiService | undefined
   ctx.inject(['ai'], scope => {
-    const provider = scope.ai
+    const provider = scope.get('ai') as AiService
     ai = provider
     scope.effect(() => () => { if (ai === provider) ai = undefined })
   })
@@ -93,21 +93,25 @@ export function apply(ctx: Context, config: Config): void {
 
   async function sendPreview(session: Session, info: VideoInfo, summary: string): Promise<void> {
     let content: h.Fragment
-    if (session.bot.features.includes('message.markdown')) content = h('markdown', {}, formatMarkdown(info, summary))
-    else {
-      let cover: Buffer | undefined
-      if (info.coverUrl) {
-        try { cover = await client.image(info.coverUrl) }
-        catch (error) { if (!controller.signal.aborted) logger.debug('下载视频封面失败：%s', errorSummary(error)) }
-      }
-      controller.signal.throwIfAborted()
-      try {
+    const markdown = session.bot.features.includes('message.markdown')
+    let cover: Buffer | undefined
+    if (info.coverUrl) {
+      try { cover = await client.image(info.coverUrl) }
+      catch (error) { if (!controller.signal.aborted) logger.debug('下载视频封面失败：%s', errorSummary(error)) }
+    }
+    controller.signal.throwIfAborted()
+    try {
+      if (markdown) {
+        const png = await renderCover(info, cover)
+        // Native media works in both official QQ groups and guilds, without a public image host.
+        content = [h.image(png, 'image/png'), h('markdown', {}, formatMarkdown(info, summary, true))]
+      } else {
         const png = await renderCard(info, summary, cover)
         content = [h.image(png, 'image/png'), h.text('\n' + pageUrl(info))]
-      } catch (error) {
-        logger.warn('生成预览图片失败，改用文字预览：%s', errorSummary(error))
-        content = h.text(formatText(info, summary))
       }
+    } catch (error) {
+      logger.warn('生成预览图片失败，改用基础预览：%s', errorSummary(error))
+      content = markdown ? h('markdown', {}, formatMarkdown(info, summary)) : h.text(formatText(info, summary))
     }
     controller.signal.throwIfAborted()
     await session.send(content)
