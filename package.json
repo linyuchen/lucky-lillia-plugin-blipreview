@@ -1,0 +1,83 @@
+{
+  "name": "lucky-lillia-plugin-blipreview",
+  "version": "1.0.12",
+  "description": "B站视频链接和分享卡片预览，支持字幕 AI 总结、扫码登录和自动续期",
+  "author": "linyuchen",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "webui",
+    "docs"
+  ],
+  "keywords": [
+    "luckylillia-plugin",
+    "bilibili"
+  ],
+  "engines": {
+    "node": ">=22.15"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "dev": "tsc -p . --watch",
+    "test": "vitest run",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.1.0",
+    "qrcode-generator": "^2.0.4"
+  },
+  "peerDependencies": {
+    "@luckylillia/plugin-sdk": "^1.0.0",
+    "lucky-lillia-aiprovider": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "lucky-lillia-aiprovider": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@luckylillia/plugin-sdk": "file:../../LuckyLillia.Bot/packages/plugin-sdk",
+    "@types/node": "^24.12.4",
+    "jsqr": "^1.4.0",
+    "lucky-lillia-aiprovider": "file:../lucky-lillia-plugin-aiprovider",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "llbot": {
+    "webui": "webui/index.js",
+    "title": {
+      "zh": "B站预览",
+      "en": "Bilibili Preview"
+    },
+    "description": {
+      "zh": "自动解析 BV、av、b23 短链及 B站分享卡片，发送视频封面和信息，可选 AI 总结。支持 B站扫码登录和自动续期。"
+    },
+    "category": "chat",
+    "icon": "image",
+    "details": "docs/details.md",
+    "service": {
+      "required": [
+        "bots",
+        "commands",
+        "http",
+        "timer"
+      ],
+      "optional": [
+        "ai",
+        "webuiServer"
+      ]
+    }
+  }
+}
