@@ -15,7 +15,8 @@ if (pack.name !== pkg.name || pack.version !== pkg.version) throw new Error('Pac
 const files = new Set(pack.files.map(file => file.path))
 for (const path of [
   'package.json', 'README.md', 'LICENSE',
-  pkg.main, pkg.types, pkg.llbot.webui, pkg.llbot.icon, pkg.llbot.details,
+  pkg.main, pkg.types, pkg.llbot.webui, pkg.llbot.icon,
+  ...(pkg.llbot.details === undefined ? [] : [pkg.llbot.details]),
   ...(pkg.llbot.screenshots ?? []).map(image => typeof image === 'string' ? image : image.src),
 ]) {
   if (!files.has(path)) throw new Error('Required package file is missing: ' + path)

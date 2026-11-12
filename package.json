@@ -1,6 +1,6 @@
 {
   "name": "lucky-lillia-plugin-blipreview",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "description": "B站视频链接和分享卡片预览，支持字幕 AI 总结、扫码登录和自动续期",
   "author": "linyuchen",
   "repository": {
@@ -66,17 +66,11 @@
       "zh": "B站预览",
       "en": "Bilibili Preview"
     },
-    "description": {
-      "zh": "自动解析 BV、av、b23 短链及 B站分享卡片，发送视频封面和信息，可选 AI 总结。支持 B站扫码登录和自动续期。"
-    },
+    "description": "自动解析 BV、av、b23 短链及 B站分享卡片，发送视频封面和信息，可选 AI 总结。",
     "category": "chat",
     "icon": "assets/icon.png",
-    "details": "README.md",
     "screenshots": [
-      {
-        "src": "assets/demo.png",
-        "caption": "视频预览与 AI 总结效果"
-      }
+      "assets/demo.png"
     ],
     "service": {
       "required": [

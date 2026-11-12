@@ -15,7 +15,7 @@ afterEach(async () => { await app.dispose(); vi.restoreAllMocks(); vi.unstubAllG
 
 const setup = (config: Partial<plugin.Config> = {}) => app.ctx.plugin(plugin, config)
 const views = () => fake.calls.filter(call => call.url.pathname.endsWith('/view'))
-const miniapp = (fields: Record<string, string>) => h('luckylillia:ark', { data: JSON.stringify({
+const miniapp = (fields: Record<string, string>) => h('ntqq:ark', { data: JSON.stringify({
   app: 'com.tencent.miniapp_01', desc: '哔哩哔哩', meta: { detail_1: { title: '哔哩哔哩', ...fields } },
 }) }).toString()
 
@@ -81,7 +81,7 @@ describe('messages, commands and rendering', () => {
 
   it('uses a full PNG on NTQQ and a composed cover with Markdown on capable official bots', async () => {
     await setup()
-    const nt = app.bot({ platform: 'luckylillia' })
+    const nt = app.bot({ platform: 'ntqq' })
     const media = fakeQQMedia(fake)
     const official = app.bot({ platform: 'qq', features: ['message.markdown'], internal: media })
     const images = await nt.receive(BVID)

@@ -71,7 +71,7 @@ export function messageInput(session: Session): { text: string; card?: BiliCard 
     for (const element of elements) {
       if (element.type === 'quote') continue
       if (element.type === 'text') texts.push(String(element.attrs.content ?? ''))
-      else if (['luckylillia:ark', 'qq:ark', 'json'].includes(element.type)) {
+      else if (['ntqq:ark', 'luckylillia:ark', 'qq:ark', 'json'].includes(element.type)) {
         card ??= fromArk(element.attrs.data ?? element.attrs.content ?? element.attrs)
       } else {
         if (element.type === 'a') texts.push(string(element.attrs.href))

@@ -17,11 +17,11 @@ describe('video and card recognition', () => {
     expect(extractReference(text)).toBeUndefined()
   })
 
-  it('extracts a real NTQQ miniapp link from the ark element', () => {
+  it.each(['ntqq:ark', 'luckylillia:ark'])('extracts an NTQQ miniapp link from %s, including older Bot versions', (type) => {
     const ark = { app: 'com.tencent.miniapp_01', desc: '哔哩哔哩', meta: { detail_1: {
       title: '哔哩哔哩', desc: '视频标题', qqdocurl: 'https://b23.tv/cardLink', preview: '//gchat.qpic.cn/preview.png',
     } } }
-    expect(input(h('luckylillia:ark', { data: JSON.stringify(ark) }).toString()).card).toEqual({
+    expect(input(h(type, { data: JSON.stringify(ark) }).toString()).card).toEqual({
       title: '视频标题', preview: 'https://gchat.qpic.cn/preview.png', reference: { short: 'cardLink' },
     })
   })
