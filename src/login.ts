@@ -54,10 +54,6 @@ function sleep(ctx: Context, ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-function textArgument(markup: string): string {
-  return h.parse(markup).filter(element => element.type === 'text').map(element => String(element.attrs.content ?? '')).join('')
-}
-
 /** Shared by chat and WebUI; only this function exchanges a QR ticket for saved credentials. */
 export async function runQrLogin(
   ctx: Context, client: BiliClient, credentials: CredentialStore,
@@ -155,27 +151,11 @@ export function registerLogin(ctx: Context, client: BiliClient, credentials: Cre
   }
 
   if (config.qrLogin.enabled) {
-    ctx.command('登录B站', '在聊天窗口发送二维码，使用手机 B站 App 扫码登录').action(async ({ session }) => {
+    ctx.command('登录B站', '在聊天窗口发送二维码，使用手机 B站 App 扫码登录', { authority: 'owner' }).action(async ({ session }) => {
       if (running) return reply('已有一个 B站扫码登录正在进行，请等待完成或超时后再试。')
       await control.start(controller => qrLogin(session, controller))
     })
   }
-
-  ctx.command('设置B站cookie [cookies:text]', '导入 B站登录 Cookie', { hidden: true }).action(async (_, raw: string = '') => {
-    if (running) return reply('请先完成扫码登录，或等待二维码超时后再设置 Cookie。')
-    const cookie = textArgument(raw)
-    if (!cookieValue(cookie, 'SESSDATA')) return reply('请在指令后附上包含 SESSDATA 的完整 B站 Cookie。')
-    try {
-      // A manually pasted cookie has no matching refresh token from an earlier QR login.
-      await credentials.save(cookie, '', client.signal)
-    } catch (error) {
-      if (!client.signal.aborted) logger.warn('保存 B站 Cookie 失败：%s', errorSummary(error))
-      return reply('保存 B站 Cookie 失败，请检查插件数据目录是否可写。')
-    }
-    try {
-      return reply(await client.checkLogin() ? '设置成功，B站已登录，登录凭据已保存。' : 'Cookie 已保存，但 B站判定为未登录，可能不完整或已过期。')
-    } catch { return reply('Cookie 已保存，暂时无法验证 B站登录状态。') }
-  })
 
   return control
 }

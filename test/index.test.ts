@@ -204,7 +204,7 @@ describe('deduplication and failures', () => {
     await fiber.dispose()
     await request
     expect(bot.sent).toEqual([])
-    expect(app.ctx.commands.list().filter(command => ['登录B站', '设置B站cookie'].includes(command.name))).toEqual([])
+    expect(app.ctx.commands.list()).toEqual([])
   })
 })
 

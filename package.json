@@ -1,6 +1,6 @@
 {
   "name": "lucky-lillia-plugin-blipreview",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "B站视频链接和分享卡片预览，支持字幕 AI 总结、扫码登录和自动续期",
   "author": "linyuchen",
   "repository": {

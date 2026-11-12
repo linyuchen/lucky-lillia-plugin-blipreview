@@ -127,13 +127,13 @@ describe('WebUI login', () => {
 
   it('rejects overlapping web/chat logins and ignores cancellation from a stale tab', async () => {
     vi.useFakeTimers()
+    app.commands.owners = ['test:user']
     await setup()
     await call('start', { id })
     const bot = app.bot()
     expect((await call('refresh', { force: true })).status).toBe(409)
     expect((await call('start', { id: 'different-attempt' })).status).toBe(409)
     expect((await bot.receive('登录B站'))[0]).toContain('已有一个')
-    expect((await bot.receive('设置B站cookie SESSDATA=other'))[0]).toContain('请先完成扫码')
     expect((await call('cancel', { id: 'different-attempt' })).data.state).toBe('waiting')
     expect((await call('cancel', { id })).data).toMatchObject({ state: 'cancelled', busy: false })
     await vi.advanceTimersByTimeAsync(180000)

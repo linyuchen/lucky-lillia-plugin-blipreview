@@ -10,6 +10,7 @@ let fake: ReturnType<typeof fakeBili>
 beforeEach(async () => {
   fake = fakeBili()
   app = await createTestApp()
+  app.commands.owners = ['test:user']
 })
 afterEach(async () => {
   await app.dispose()
@@ -32,73 +33,55 @@ function success(): Response {
   return response
 }
 
-describe('login permissions and cookie management', () => {
-  it('lets an ordinary user request a QR by default', async () => {
+describe('login permissions', () => {
+  it('only registers QR login and restricts it to configured owners by default', async () => {
     vi.useFakeTimers()
     const fiber = await setup()
     const bot = app.bot()
+    const visitor = { userId: 'visitor', guildId: 'group' }
+    expect((await bot.receive('登录B站', visitor))[0]).toContain('权限')
+    expect(await bot.receive('设置B站cookie SESSDATA=manual')).toEqual([])
+    expect(fake.calls).toEqual([])
+    await vi.waitFor(async () => {
+      expect(await saved()).toMatchObject({ cookie: '', refreshToken: '' })
+    })
     const login = bot.receive('登录B站')
-    await vi.waitFor(() => expect(bot.sent[0]?.content).toContain('data:image/png;base64,'))
+    await vi.waitFor(() => expect(bot.sent.some(message => message.content.includes('data:image/png;base64,'))).toBe(true))
     expect(fake.calls.filter(call => call.url.pathname.endsWith('/generate'))).toHaveLength(1)
-    expect(app.ctx.commands.list().every(command => command.authority === 'everyone')).toBe(true)
+    expect(app.ctx.commands.list()).toMatchObject([{ name: '登录B站', authority: 'owner', defaultAuthority: 'owner' }])
     await fiber.dispose()
     await login
   })
 
   it('applies centrally configured permissions live and ignores legacy plugin administrator lists', async () => {
+    vi.useFakeTimers()
     const legacyConfig = { cookie: '', admins: ['test:user'] }
-    await setup(legacyConfig)
-    app.commands.permissions = [
-      { owner: '', command: '登录B站', authority: 'owner' },
-      { owner: '', command: '设置B站cookie', authority: 'owner' },
-    ]
+    const fiber = await setup(legacyConfig)
     app.commands.owners = ['test:alice']
     const bot = app.bot()
     expect((await bot.receive('登录B站'))[0]).toContain('权限')
+    expect((await app.bot({ platform: 'qq' }).receive('登录B站', { userId: 'alice' }))[0]).toContain('权限')
     expect(fake.calls).toEqual([])
-    expect((await bot.receive('设置B站cookie', { userId: 'user' }))[0]).toContain('权限')
-    expect((await bot.receive('设置B站cookie', { userId: 'alice' }))[0]).toContain('包含 SESSDATA')
-    expect((await app.bot({ platform: 'qq' }).receive('设置B站cookie', { userId: 'alice' }))[0]).toContain('权限')
-    app.commands.permissions = []
+    const login = bot.receive('登录B站', { userId: 'alice' })
+    await vi.waitFor(() => expect(bot.sent.some(message => message.content.includes('data:image/png;base64,'))).toBe(true))
+    app.commands.permissions = [
+      { owner: '', command: '登录B站', authority: 'everyone' },
+    ]
     app.commands.owners = []
-    expect((await bot.receive('设置B站cookie', { userId: 'user' }))[0]).toContain('包含 SESSDATA')
-    expect((await bot.receive('设置B站cookie', { userId: 'alice' }))[0]).toContain('包含 SESSDATA')
-  })
-
-  it('persists manually pasted cookies, clears unrelated refresh tokens and survives reload', async () => {
-    const config = { cookie: 'SESSDATA=config', refreshToken: 'old-refresh' }
-    const fiber = await setup(config)
-    const bot = app.bot()
-    expect((await bot.receive('设置B站cookie SESSDATA=manual%2Cvalue; bili_jct=test-csrf', user))[0]).toContain('设置成功')
-    expect(await saved()).toMatchObject({ cookie: 'SESSDATA=manual%2Cvalue; bili_jct=test-csrf', refreshToken: '' })
+    expect((await bot.receive('登录B站'))[0]).toContain('已有一个')
+    expect(app.ctx.commands.list()).toMatchObject([{ name: '登录B站', authority: 'everyone', defaultAuthority: 'owner' }])
+    app.commands.permissions = []
+    expect((await bot.receive('登录B站'))[0]).toContain('权限')
     await fiber.dispose()
-    const beforeReload = fake.calls.length
-    await setup(config)
-    await vi.waitFor(() => expect(fake.calls.slice(beforeReload).find(call => call.url.pathname.endsWith('/nav'))?.headers.get('cookie'))
-      .toBe('SESSDATA=manual%2Cvalue; bili_jct=test-csrf'))
-    expect(await saved()).toMatchObject({ cookie: 'SESSDATA=manual%2Cvalue; bili_jct=test-csrf', refreshToken: '' })
-    expect(bot.sent.map(message => message.content).join('')).not.toContain('manual%2Cvalue')
+    await login
   })
 
-  it('does not accept an incomplete cookie and does not register a disabled login command', async () => {
+  it('does not register chat commands when QR login is disabled', async () => {
     await setup({ qrLogin: { enabled: false } })
     const bot = app.bot()
-    expect((await bot.receive('设置B站cookie bili_jct=only-csrf', user))[0]).toContain('包含 SESSDATA')
-    expect(app.ctx.commands.list().some(command => command.name === '登录B站')).toBe(false)
+    expect(await bot.receive('登录B站', user)).toEqual([])
+    expect(app.ctx.commands.list()).toEqual([])
     expect(fake.calls).toEqual([])
-  })
-
-  it('does not send a late cookie-validation reply after unload', async () => {
-    const fiber = await setup()
-    fake.route = call => call.url.pathname.endsWith('/nav') ? new Promise((_, reject) => {
-      call.init.signal!.addEventListener('abort', () => reject(call.init.signal!.reason), { once: true })
-    }) : undefined
-    const bot = app.bot()
-    const command = bot.receive('设置B站cookie SESSDATA=test', user)
-    await vi.waitFor(() => expect(fake.calls.some(call => call.url.pathname.endsWith('/nav'))).toBe(true))
-    await fiber.dispose()
-    await command
-    expect(bot.sent).toEqual([])
   })
 })
 
