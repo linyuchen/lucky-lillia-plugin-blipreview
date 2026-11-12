@@ -1,4 +1,5 @@
 import { createCanvas } from '@napi-rs/canvas'
+import { createHash } from 'node:crypto'
 import { vi } from 'vitest'
 
 export const BVID = 'BV17x411w7KC'
@@ -71,4 +72,21 @@ export function fakeBili() {
     throw new Error('Unexpected request: ' + call.url.origin + pathname)
   }))
   return state
+}
+
+export function fakeQQMedia(fake: ReturnType<typeof fakeBili>) {
+  const previous = fake.route
+  fake.route = call => call.url.hostname === 'qq-upload.example.test'
+    ? new Response('', { headers: { ETag: '"' + createHash('md5').update(call.init.body as Uint8Array).digest('hex') + '"' } })
+    : previous?.(call)
+  return {
+    prepareMediaImage: vi.fn(async (_data: unknown) => ({
+      upload_id: 'upload-1', presigned_url: 'https://qq-upload.example.test/preview.png?secret=signed-upload', expires_in: 3600,
+    })),
+    completeMediaImage: vi.fn(async (_data: unknown) => ({
+      image_id: 'image-1', url: 'qqbot-media://image/v1/preview-1', ttl: 7776000,
+      preview_url: 'https://qq-upload.example.test/preview.png?secret=temporary-preview',
+    })),
+    deleteMediaImage: vi.fn(async (_imageId: string) => ({})),
+  }
 }

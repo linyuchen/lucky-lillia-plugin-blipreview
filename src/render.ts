@@ -23,7 +23,7 @@ export const playerUrl = (info: VideoInfo): string => 'https://player.bilibili.c
 function limit(text: string, length: number): string { return text.length > length ? text.slice(0, length) + '…' : text }
 
 function stats(info: VideoInfo): string {
-  return '播放 ' + formatCount(info.view) + ' · 弹幕 ' + formatCount(info.danmu) + ' · 点赞 ' + formatCount(info.like) + ' · 时长 ' + info.duration
+  return '播放 ' + formatCount(info.view) + ' · 弹幕 ' + formatCount(info.danmu) + ' · 时长 ' + info.duration
 }
 
 export function formatText(info: VideoInfo, summary: string): string {
@@ -34,13 +34,15 @@ export function formatText(info: VideoInfo, summary: string): string {
 
 const escapeMarkdown = (text: string): string => text.replace(/[\\\x60*_{}\[\]<>()#+.!|~-]/g, '\\$&')
 
-export function formatMarkdown(info: VideoInfo, summary: string, renderedCover = false): string {
-  const cover = !renderedCover && isImageUrl(info.coverUrl) ? info.coverUrl.replace(/[()<>\s]/g, char => encodeURIComponent(char)) : ''
-  return [cover ? '![封面 #560px #315px](' + cover + ')' : '', '**' + escapeMarkdown(info.title) + '**',
+export interface MarkdownCover { url: string; width: number; height: number }
+
+export function formatMarkdown(info: VideoInfo, summary: string, renderedCover?: MarkdownCover): string {
+  const cover = renderedCover ?? (isImageUrl(info.coverUrl) ? { url: info.coverUrl, width: WIDTH, height: COVER_HEIGHT } : undefined)
+  const image = cover ? '![封面 #' + cover.width + 'px #' + cover.height + 'px]('
+    + cover.url.replace(/[()<>\s]/g, char => encodeURIComponent(char)) + ')' : ''
+  return [image, '**' + escapeMarkdown(info.title) + '**',
     renderedCover ? '' : 'UP：' + escapeMarkdown(info.owner),
-    escapeMarkdown(renderedCover
-      ? '点赞 ' + formatCount(info.like) + ' · 投币 ' + formatCount(info.coin) + ' · 收藏 ' + formatCount(info.favorite)
-      : stats(info)),
+    renderedCover ? '' : escapeMarkdown(stats(info)),
     info.desc && info.desc !== info.title ? '简介：' + escapeMarkdown(limit(info.desc, 800)) : '',
     escapeMarkdown(limit(summary, 2000)), '[立即播放](' + playerUrl(info) + ')  [原网页](' + pageUrl(info) + ')']
     .filter(Boolean).join('\n\n')
@@ -139,7 +141,7 @@ export async function renderCard(info: VideoInfo, summary: string, cover?: Buffe
   measure.font = '18px ' + FONT
   const desc = info.desc && info.desc !== info.title ? wrap(measure, '简介：' + info.desc, WIDTH - 48, 4) : []
   const summaryLines = summary ? wrap(measure, summary, WIDTH - 48, 12) : []
-  const height = COVER_HEIGHT + 24 + title.length * 34 + 42 + 30
+  const height = COVER_HEIGHT + 24 + title.length * 34 + 42
     + (desc.length ? 14 + desc.length * 27 : 0) + (summaryLines.length ? 18 + summaryLines.length * 28 : 0) + 52
   const canvas = createCanvas(WIDTH, height)
   const context = canvas.getContext('2d')
@@ -159,9 +161,6 @@ export async function renderCard(info: VideoInfo, summary: string, cover?: Buffe
   context.fillText(info.uploadTime, WIDTH - 24, y + 6)
   context.textAlign = 'left'
   y += 42
-  context.font = '16px ' + FONT
-  context.fillText('点赞 ' + formatCount(info.like) + '   投币 ' + formatCount(info.coin) + '   收藏 ' + formatCount(info.favorite), 24, y - 5)
-  y += 30
   context.font = '18px ' + FONT
   if (desc.length) {
     y += 8

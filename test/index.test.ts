@@ -5,7 +5,7 @@ import { createTestApp, type TestApp } from '@luckylillia/plugin-sdk/testing'
 import type { AiService } from '../src/ai.js'
 import * as plugin from '../src/index.js'
 import * as renderer from '../src/render.js'
-import { BVID, OTHER_BVID, VIDEO, fakeBili, json, solidPng } from './fixtures.js'
+import { BVID, OTHER_BVID, VIDEO, fakeBili, fakeQQMedia, json, solidPng } from './fixtures.js'
 
 let app: TestApp
 let fake: ReturnType<typeof fakeBili>
@@ -33,9 +33,9 @@ async function addAi() {
 
 async function previewImage(content: string) {
   const [image] = h.parse(content)
-  expect(image.type).toBe('img')
-  expect(image.attrs.src).toMatch(/^data:image\/png;base64,/)
-  return loadImage(Buffer.from(image.attrs.src.split(',')[1], 'base64'))
+  const src = image.type === 'img' ? image.attrs.src : /data:image\/png;base64,[^\s)]+/.exec(content)?.[0]
+  expect(src).toMatch(/^data:image\/png;base64,/)
+  return loadImage(Buffer.from(src.split(',')[1], 'base64'))
 }
 
 describe('messages, commands and rendering', () => {
@@ -47,13 +47,12 @@ describe('messages, commands and rendering', () => {
     const replies = await bot.receive('看看这个 ' + BVID)
     expect(replies).toHaveLength(1)
     expect(replies[0]).toContain(VIDEO.title)
-    expect(replies[0]).toContain('<img ')
+    expect(h.parse(replies[0]).map(element => element.type)).toEqual(['markdown'])
+    expect(replies[0]).toContain('![封面 #560px #395px](data:image/png;base64,')
     expect(replies[0]).not.toContain('播放 12\\.3万')
     expect(replies[0]).not.toContain('弹幕 42')
     expect(replies[0]).not.toContain('UP：')
-    expect(replies[0]).toContain('点赞 678')
-    expect(replies[0]).toContain('投币 123')
-    expect(replies[0]).toContain('收藏 345')
+    expect(replies[0]).not.toMatch(/点赞|投币|收藏/)
     expect(replies[0]).toContain('https://www.bilibili.com/video/' + BVID)
     expect(seen).toBe(1)
     expect(await bot.receive('普通聊天')).toEqual([])
@@ -83,7 +82,8 @@ describe('messages, commands and rendering', () => {
   it('uses a full PNG on NTQQ and a composed cover with Markdown on capable official bots', async () => {
     await setup()
     const nt = app.bot({ platform: 'luckylillia' })
-    const official = app.bot({ platform: 'qq', features: ['message.markdown'] })
+    const media = fakeQQMedia(fake)
+    const official = app.bot({ platform: 'qq', features: ['message.markdown'], internal: media })
     const images = await nt.receive(BVID)
     expect(images[0]).toMatch(/^<img src="data:image\/png;base64,/)
     expect(images[0]).toContain('\nhttps://www.bilibili.com/video/' + BVID)
@@ -91,16 +91,20 @@ describe('messages, commands and rendering', () => {
     expect(card.width).toBe(560)
     expect(card.height).toBeGreaterThan(395)
     const markdown = (await official.receive('<at id="bot"/> ' + BVID, { guildId: 'group' }))[0]
-    expect(h.parse(markdown).map(element => element.type)).toEqual(['img', 'markdown'])
-    const cover = await previewImage(markdown)
+    expect(h.parse(markdown).map(element => element.type)).toEqual(['markdown'])
+    expect(markdown).toContain('![封面 #560px #395px](qqbot-media://image/v1/preview-1)')
+    const uploaded = fake.calls.find(call => call.url.hostname === 'qq-upload.example.test')!
+    const cover = await loadImage(Buffer.from(uploaded.init.body as Uint8Array))
     expect([cover.width, cover.height]).toEqual([560, 395])
     expect(markdown).not.toContain(VIDEO.pic)
-    expect(markdown).not.toContain('![封面')
+    expect(markdown).not.toContain('data:image')
+    expect(markdown).not.toContain('temporary-preview')
     expect(markdown).not.toContain('qq:rawmarkdown')
+    expect(media.deleteMediaImage).toHaveBeenCalledExactlyOnceWith('image-1')
     expect(fake.calls.find(call => call.url.hostname === 'i0.hdslb.com')?.headers.has('cookie')).toBe(false)
   })
 
-  it('escapes remote Markdown and keeps statistics not already drawn in the image', async () => {
+  it('escapes remote Markdown without duplicating image statistics', async () => {
     fake.video.title = '标题 <at id="all"/> [假链接](https://evil.test)'
     await setup()
     const content = (await app.bot({ features: ['message.markdown'] }).receive(BVID))[0]
@@ -109,7 +113,7 @@ describe('messages, commands and rendering', () => {
     expect(content).not.toContain('<at id=')
     expect(content).not.toContain('播放 12\\.3万')
     expect(content).not.toContain('弹幕 42')
-    expect(content).toContain('点赞 678')
+    expect(content).not.toMatch(/点赞|投币|收藏/)
   })
 
   it('still sends a composed cover with metadata when the cover CDN is unavailable', async () => {
@@ -132,7 +136,7 @@ describe('messages, commands and rendering', () => {
     expect(content).toContain('播放 12\\.3万')
     expect(content).toContain('弹幕 42')
     expect(content).toContain('时长 3:26')
-    expect(content).toContain('点赞 678')
+    expect(content).not.toMatch(/点赞|投币|收藏/)
   })
 
   it('uses an image card and video link for official bots without markdown capability', async () => {
