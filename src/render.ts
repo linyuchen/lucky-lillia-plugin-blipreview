@@ -19,6 +19,7 @@ export const pageUrl = (info: VideoInfo): string => 'https://www.bilibili.com/vi
 export const playerUrl = (info: VideoInfo): string => 'https://player.bilibili.com/player.html?' + new URLSearchParams({
   ...(info.bvid ? { bvid: info.bvid } : { aid: String(info.aid) }), p: '1', autoplay: 'true',
 }).toString()
+export const formatTextLinks = (info: VideoInfo): string => '原网页：' + pageUrl(info) + '\n立即播放：' + playerUrl(info)
 
 function limit(text: string, length: number): string { return text.length > length ? text.slice(0, length) + '…' : text }
 
@@ -26,10 +27,10 @@ function stats(info: VideoInfo): string {
   return '播放 ' + formatCount(info.view) + ' · 弹幕 ' + formatCount(info.danmu) + ' · 时长 ' + info.duration
 }
 
-export function formatText(info: VideoInfo, summary: string): string {
-  return [info.title, 'UP：' + info.owner, stats(info),
+export function formatText(info: VideoInfo, summary: string, renderedCover = false): string {
+  return [info.title, renderedCover ? '' : 'UP：' + info.owner, renderedCover ? '' : stats(info),
     info.desc && info.desc !== info.title ? '简介：' + limit(info.desc, 800) : '', limit(summary, 2000),
-    '立即播放：' + playerUrl(info), '原网页：' + pageUrl(info)].filter(Boolean).join('\n')
+    formatTextLinks(info)].filter(Boolean).join('\n\n')
 }
 
 const escapeMarkdown = (text: string): string => text.replace(/[\\\x60*_{}\[\]<>()#+.!|~-]/g, '\\$&')
@@ -129,56 +130,6 @@ export async function renderCover(info: VideoInfo, cover?: Buffer): Promise<Buff
   context.font = '25px ' + FONT
   context.textAlign = 'right'
   context.fillText(info.uploadTime, WIDTH - 20, (COVER_HEIGHT + height) / 2)
-  return canvas.encode('png')
-}
-
-/** Native canvas packages include platform binaries; no browser, image host or installation script is needed. */
-export async function renderCard(info: VideoInfo, summary: string, cover?: Buffer): Promise<Buffer> {
-  const { createCanvas } = await import('@napi-rs/canvas')
-  const measure = createCanvas(WIDTH, 1).getContext('2d')
-  measure.font = '600 24px ' + FONT
-  const title = wrap(measure, info.title, WIDTH - 48, 3)
-  measure.font = '18px ' + FONT
-  const desc = info.desc && info.desc !== info.title ? wrap(measure, '简介：' + info.desc, WIDTH - 48, 4) : []
-  const summaryLines = summary ? wrap(measure, summary, WIDTH - 48, 12) : []
-  const height = COVER_HEIGHT + 24 + title.length * 34 + 42
-    + (desc.length ? 14 + desc.length * 27 : 0) + (summaryLines.length ? 18 + summaryLines.length * 28 : 0) + 52
-  const canvas = createCanvas(WIDTH, height)
-  const context = canvas.getContext('2d')
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, WIDTH, height)
-  await drawCoverSection(context, info, cover)
-  let y = COVER_HEIGHT + 35
-  context.fillStyle = '#172033'
-  context.font = '600 24px ' + FONT
-  for (const line of title) { context.fillText(line, 24, y); y += 34 }
-  context.font = '18px ' + FONT
-  context.fillStyle = '#4b5563'
-  const owner = wrap(context, 'UP：' + info.owner, 290, 1)[0] ?? ''
-  context.fillText(owner, 24, y + 6)
-  context.font = '14px ' + FONT
-  context.textAlign = 'right'
-  context.fillText(info.uploadTime, WIDTH - 24, y + 6)
-  context.textAlign = 'left'
-  y += 42
-  context.font = '18px ' + FONT
-  if (desc.length) {
-    y += 8
-    for (const line of desc) { context.fillText(line, 24, y); y += 27 }
-  }
-  if (summaryLines.length) {
-    y += 16
-    context.fillStyle = '#174a68'
-    for (const line of summaryLines) { context.fillText(line, 24, y); y += 28 }
-  }
-  context.fillStyle = '#dfe7ef'
-  context.fillRect(24, height - 43, WIDTH - 48, 1)
-  context.font = '14px ' + FONT
-  context.fillStyle = '#00a1d6'
-  context.fillText('BILIBILI', 24, height - 19)
-  context.textAlign = 'right'
-  context.fillStyle = '#7b8796'
-  context.fillText(info.bvid || 'av' + info.aid, WIDTH - 24, height - 19)
   return canvas.encode('png')
 }
 

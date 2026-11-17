@@ -2,7 +2,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas'
 import jsQR from 'jsqr'
 import { expect, it } from 'vitest'
 import type { VideoInfo } from '../src/api.js'
-import { renderCard, renderCover, renderQrcode } from '../src/render.js'
+import { renderCover, renderQrcode } from '../src/render.js'
 import { QR_URL, VIDEO, solidPng } from './fixtures.js'
 
 const info: VideoInfo = {
@@ -38,14 +38,6 @@ it.each([
   expect(original.region(0, 265).equals(changed.region(0, 265))).toBe(true)
   expect(original.region(265, 50).equals(changed.region(265, 50))).toBe(band !== 'stats')
   expect(original.region(315, 80).equals(changed.region(315, 80))).toBe(band !== 'meta')
-})
-
-it('uses the same cover and statistics in the compact and full card', async () => {
-  const cover = solidPng()
-  const compact = await readPng(await renderCover(info, cover))
-  const card = await readPng(await renderCard(info, '视频总结示例。', cover))
-  expect(card.height).toBeGreaterThan(compact.height)
-  expect(card.region(0, 315).equals(compact.region(0, 315))).toBe(true)
 })
 
 it('keeps the metadata image when the cover is corrupt or missing, and wraps long UP names', async () => {

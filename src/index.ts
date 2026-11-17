@@ -7,7 +7,7 @@ import { registerLogin } from './login.js'
 import { registerWebLogin } from './web-login.js'
 import { registerAutoRefresh } from './refresh.js'
 import { extractReference, messageInput, pickExactTitleCandidates, type BiliCard, type VideoReference } from './parser.js'
-import { formatMarkdown, formatText, matchCover, pageUrl, renderCard, renderCover } from './render.js'
+import { formatMarkdown, formatText, matchCover, renderCover } from './render.js'
 import { buildSummary } from './summary.js'
 import { uploadQQImage } from './qq-media.js'
 
@@ -103,8 +103,8 @@ export function apply(ctx: Context, config: Config): void {
     }
     controller.signal.throwIfAborted()
     try {
+      const png = await renderCover(info, cover)
       if (markdown) {
-        const png = await renderCover(info, cover)
         let url = 'data:image/png;base64,' + png.toString('base64')
         if (session.bot.platform === 'qq') {
           const image = await uploadQQImage(ctx, session.bot, png, controller.signal)
@@ -115,8 +115,7 @@ export function apply(ctx: Context, config: Config): void {
           url, width: png.readUInt32BE(16), height: png.readUInt32BE(20),
         }))
       } else {
-        const png = await renderCard(info, summary, cover)
-        content = [h.image(png, 'image/png'), h.text('\n' + pageUrl(info))]
+        content = [h.image(png, 'image/png'), h.text('\n' + formatText(info, summary, true))]
       }
     } catch (error) {
       logger.warn('生成或上传预览图片失败，改用基础预览：%s', errorSummary(error))

@@ -79,17 +79,21 @@ describe('messages, commands and rendering', () => {
     expect(await bot.receive('/bili ' + BVID)).toEqual([])
   })
 
-  it('uses a full PNG on NTQQ and a composed cover with Markdown on capable official bots', async () => {
+  it('uses a composed cover with plain text on NTQQ and Markdown on capable official bots', async () => {
     await setup()
     const nt = app.bot({ platform: 'ntqq' })
     const media = fakeQQMedia(fake)
     const official = app.bot({ platform: 'qq', features: ['message.markdown'], internal: media })
     const images = await nt.receive(BVID)
+    expect(images).toHaveLength(1)
     expect(images[0]).toMatch(/^<img src="data:image\/png;base64,/)
-    expect(images[0]).toContain('\nhttps://www.bilibili.com/video/' + BVID)
-    const card = await previewImage(images[0])
-    expect(card.width).toBe(560)
-    expect(card.height).toBeGreaterThan(395)
+    expect(h.parse(images[0]).map(element => element.type)).toEqual(['img', 'text'])
+    expect(images[0]).toContain('\n' + VIDEO.title + '\n\n简介：' + VIDEO.desc)
+    expect(images[0]).not.toMatch(/UP：|播放 12\.3万|弹幕 42/)
+    expect(images[0]).toContain('\n\n原网页：https://www.bilibili.com/video/' + BVID
+      + '\n立即播放：https://player.bilibili.com/player.html?bvid=' + BVID)
+    const image = await previewImage(images[0])
+    expect([image.width, image.height]).toEqual([560, 395])
     const markdown = (await official.receive('<at id="bot"/> ' + BVID, { guildId: 'group' }))[0]
     expect(h.parse(markdown).map(element => element.type)).toEqual(['markdown'])
     expect(markdown).toContain('![封面 #560px #395px](qqbot-media://image/v1/preview-1)')
@@ -139,12 +143,15 @@ describe('messages, commands and rendering', () => {
     expect(content).not.toMatch(/点赞|投币|收藏/)
   })
 
-  it('uses an image card and video link for official bots without markdown capability', async () => {
-    await setup()
+  it('uses a composed cover with text and video links for official bots without markdown capability', async () => {
+    await setup({ summaryMode: 'official' })
     const content = (await app.bot({ platform: 'qq' }).receive(BVID))[0]
     expect(content).not.toContain('<markdown>')
     expect(content).toContain('<img ')
-    expect(content).toContain('https://www.bilibili.com/video/' + BVID)
+    expect(content).toContain('\n' + VIDEO.title + '\n\n简介：' + VIDEO.desc)
+    expect(content).toContain('官方总结示例。')
+    expect(content).toContain('\n\n原网页：https://www.bilibili.com/video/' + BVID
+      + '\n立即播放：https://player.bilibili.com/player.html?bvid=' + BVID)
   })
 
   it('does not preview quotes, media URLs or messages sent by itself', async () => {
