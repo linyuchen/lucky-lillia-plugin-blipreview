@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { PluginStorage } from '@luckylillia/plugin-sdk'
+import type { PluginStorage } from '@luckylillia-dev/plugin-sdk'
 
 export interface Credentials {
   cookie: string

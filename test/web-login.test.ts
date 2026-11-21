@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestApp, type TestApp } from '@luckylillia/plugin-sdk/testing'
+import { createTestApp, type TestApp } from '@luckylillia-dev/plugin-sdk/testing'
 import { BiliClient } from '../src/api.js'
 import { Config } from '../src/config.js'
 import { CredentialStore } from '../src/credentials.js'

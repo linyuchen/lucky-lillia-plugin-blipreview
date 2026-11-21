@@ -1,21 +1,21 @@
 {
-  "name": "lucky-lillia-plugin-blipreview",
-  "version": "1.0.18",
+  "name": "@luckylillia-dev/plugin-blipreview",
+  "version": "1.1.0",
   "description": "B站视频链接和分享卡片预览，支持字幕 AI 总结、扫码登录和自动续期",
   "author": "linyuchen",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/linyuchen/lucky-lillia-plugin-blipreview.git"
-  },
   "bugs": {
     "url": "https://github.com/linyuchen/lucky-lillia-plugin-blipreview/issues"
   },
   "homepage": "https://github.com/linyuchen/lucky-lillia-plugin-blipreview#readme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LuckyLilliaDev/lucky-lillia-plugin-blipreview.git"
+  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,21 +41,21 @@
     "node": ">=22.15"
   },
   "scripts": {
-    "build": "tsc -p .",
+    "build": "tsc -p . && node scripts/vendor-canvaskit.mjs",
     "dev": "tsc -p . --watch",
     "test": "vitest run",
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^1.1.0",
     "qrcode-generator": "^2.0.4"
   },
   "peerDependencies": {
-    "@luckylillia/plugin-sdk": "^1.0.1"
+    "@luckylillia-dev/plugin-sdk": "^1.0.1"
   },
   "devDependencies": {
-    "@luckylillia/plugin-sdk": "^1.0.1",
+    "@luckylillia-dev/plugin-sdk": "npm:@luckylillia/plugin-sdk@^1.0.1",
     "@types/node": "^24.12.4",
+    "canvaskit-wasm": "^0.42.0",
     "jsqr": "^1.4.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"

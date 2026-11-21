@@ -1,4 +1,4 @@
-import type { Http, HttpRequestConfig, HttpResponse } from '@luckylillia/plugin-sdk'
+import type { Http, HttpRequestConfig, HttpResponse } from '@luckylillia-dev/plugin-sdk'
 import type { CredentialStore } from './credentials.js'
 import { extractReference, normalizeUrl, stripSearchTitle, type VideoReference } from './parser.js'
 import { WbiSigner, type WbiImages } from './wbi.js'

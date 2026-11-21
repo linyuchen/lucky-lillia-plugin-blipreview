@@ -1,9 +1,8 @@
-import { createCanvas, loadImage } from '@napi-rs/canvas'
 import jsQR from 'jsqr'
 import { expect, it } from 'vitest'
 import type { VideoInfo } from '../src/api.js'
 import { renderCover, renderQrcode } from '../src/render.js'
-import { QR_URL, VIDEO, solidPng } from './fixtures.js'
+import { QR_URL, VIDEO, readPng, solidPng } from './fixtures.js'
 
 const info: VideoInfo = {
   bvid: VIDEO.bvid, aid: VIDEO.aid, cid: VIDEO.cid, title: VIDEO.title, desc: VIDEO.desc,
@@ -11,16 +10,6 @@ const info: VideoInfo = {
   view: VIDEO.stat.view, danmu: VIDEO.stat.danmaku, like: VIDEO.stat.like,
   coin: VIDEO.stat.coin, share: VIDEO.stat.share, favorite: VIDEO.stat.favorite,
   owner: VIDEO.owner.name, ownerId: VIDEO.owner.mid,
-}
-
-async function readPng(png: Buffer) {
-  const image = await loadImage(png)
-  const context = createCanvas(image.width, image.height).getContext('2d')
-  context.drawImage(image, 0, 0)
-  return {
-    width: image.width, height: image.height,
-    region: (y: number, height: number) => Buffer.from(context.getImageData(0, y, image.width, height).data),
-  }
 }
 
 it.each([
@@ -51,10 +40,6 @@ it('keeps the metadata image when the cover is corrupt or missing, and wraps lon
 
 it('renders a PNG QR that an independent decoder reads as the exact B站 login URL', async () => {
   const png = await renderQrcode(QR_URL, 180)
-  const image = await loadImage(png)
-  const canvas = createCanvas(image.width, image.height)
-  const context = canvas.getContext('2d')
-  context.drawImage(image, 0, 0)
-  const pixels = context.getImageData(0, 0, image.width, image.height)
-  expect(jsQR(pixels.data, image.width, image.height)?.data).toBe(QR_URL)
+  const image = await readPng(png)
+  expect(jsQR(new Uint8ClampedArray(image.pixels), image.width, image.height)?.data).toBe(QR_URL)
 })

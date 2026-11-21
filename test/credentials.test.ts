@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import type { PluginStorage } from '@luckylillia/plugin-sdk'
+import type { PluginStorage } from '@luckylillia-dev/plugin-sdk'
 import { CredentialStore } from '../src/credentials.js'
 import { Config } from '../src/config.js'
 

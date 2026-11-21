@@ -1,4 +1,4 @@
-import { h, type Context, type HttpResponse, type Session } from '@luckylillia/plugin-sdk'
+import { h, type Context, type HttpResponse, type Session } from '@luckylillia-dev/plugin-sdk'
 import { BiliApiError, errorSummary, isBiliUrl, type BiliClient, type Envelope } from './api.js'
 import type { Config } from './config.js'
 import { cookieValue, loginCookieHeaders, LOGIN_COOKIE_KEYS, type CredentialStore } from './credentials.js'

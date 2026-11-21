@@ -1,5 +1,5 @@
 import { createElement as h, useEffect, useRef, useState } from 'react'
-import { SchemaForm, usePluginContext, usePluginStatus } from '@luckylillia/plugin-sdk/webui'
+import { SchemaForm, usePluginContext, usePluginStatus } from '@luckylillia-dev/plugin-sdk/webui'
 
 const pending = state => ['generating', 'waiting', 'scanned'].includes(state)
 const stack = { display: 'grid', gap: 14 }
@@ -226,7 +226,7 @@ function LoginSection({ value, onChange, errors, draft }) {
   )
 }
 
-/** @param {import('@luckylillia/plugin-sdk/webui').ConfigEditorProps} props */
+/** @param {import('@luckylillia-dev/plugin-sdk/webui').ConfigEditorProps} props */
 function PreviewEditor({ value, onChange, schema, errors }) {
   const draft = useRef(loginDraft(value))
   if (draft.current.account !== value?.account) draft.current = loginDraft(value)
@@ -246,7 +246,7 @@ function PreviewEditor({ value, onChange, schema, errors }) {
   )
 }
 
-/** @param {import('@luckylillia/plugin-sdk/webui').WebUIContext} ctx */
+/** @param {import('@luckylillia-dev/plugin-sdk/webui').WebUIContext} ctx */
 export default function apply(ctx) {
   ctx.config(PreviewEditor)
 }

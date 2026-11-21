@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { Bot, Context } from '@luckylillia/plugin-sdk'
+import type { Bot, Context } from '@luckylillia-dev/plugin-sdk'
 import { errorSummary } from './api.js'
 
 interface QQMediaApi {

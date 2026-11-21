@@ -1,4 +1,4 @@
-import { h, type Context, type Session } from '@luckylillia/plugin-sdk'
+import { h, type Context, type Session } from '@luckylillia-dev/plugin-sdk'
 import type { AiService } from './ai.js'
 import { BiliClient, errorSummary, type VideoInfo, type VideoSearchCandidate } from './api.js'
 import { Config } from './config.js'

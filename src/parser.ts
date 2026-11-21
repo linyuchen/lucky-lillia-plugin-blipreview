@@ -1,4 +1,4 @@
-import { h, type Session } from '@luckylillia/plugin-sdk'
+import { h, type Session } from '@luckylillia-dev/plugin-sdk'
 
 export type VideoReference = { bvid: string } | { aid: string } | { short: string }
 

@@ -1,4 +1,4 @@
-import type { Context, WebUIServer } from '@luckylillia/plugin-sdk'
+import type { Context, WebUIServer } from '@luckylillia-dev/plugin-sdk'
 import type { Config } from './config.js'
 import { errorSummary, type BiliClient } from './api.js'
 import type { CredentialStore } from './credentials.js'

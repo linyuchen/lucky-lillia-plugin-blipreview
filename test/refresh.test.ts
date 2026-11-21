@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestApp, type TestApp } from '@luckylillia/plugin-sdk/testing'
+import { createTestApp, type TestApp } from '@luckylillia-dev/plugin-sdk/testing'
 import { BiliClient } from '../src/api.js'
 import { CredentialStore } from '../src/credentials.js'
 import { CookieRefresher, registerAutoRefresh } from '../src/refresh.js'

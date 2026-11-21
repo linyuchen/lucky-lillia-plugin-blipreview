@@ -1,5 +1,5 @@
 import { constants, createPublicKey, publicEncrypt } from 'node:crypto'
-import type { Context, HttpResponse } from '@luckylillia/plugin-sdk'
+import type { Context, HttpResponse } from '@luckylillia-dev/plugin-sdk'
 import { BiliApiError, errorSummary, type BiliClient, type Envelope } from './api.js'
 import { cookieValue, loginCookieHeaders, normalizeCookie, type CredentialSnapshot, type CredentialStore } from './credentials.js'
 

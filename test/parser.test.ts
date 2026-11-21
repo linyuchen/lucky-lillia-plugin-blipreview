@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { h, type Session } from '@luckylillia/plugin-sdk'
+import { h, type Session } from '@luckylillia-dev/plugin-sdk'
 import { extractReference, messageInput, pickExactTitleCandidates } from '../src/parser.js'
 import { BVID } from './fixtures.js'
 

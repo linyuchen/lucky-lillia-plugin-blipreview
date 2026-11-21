@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { h, Service, type Context } from '@luckylillia/plugin-sdk'
-import { loadImage } from '@napi-rs/canvas'
-import { createTestApp, type TestApp } from '@luckylillia/plugin-sdk/testing'
+import { h, Service, type Context } from '@luckylillia-dev/plugin-sdk'
+import { createTestApp, type TestApp } from '@luckylillia-dev/plugin-sdk/testing'
 import type { AiService } from '../src/ai.js'
 import * as plugin from '../src/index.js'
 import * as renderer from '../src/render.js'
-import { BVID, OTHER_BVID, VIDEO, fakeBili, fakeQQMedia, json, solidPng } from './fixtures.js'
+import { BVID, OTHER_BVID, VIDEO, fakeBili, fakeQQMedia, json, readPng, solidPng } from './fixtures.js'
 
 let app: TestApp
 let fake: ReturnType<typeof fakeBili>
@@ -35,7 +34,7 @@ async function previewImage(content: string) {
   const [image] = h.parse(content)
   const src = image.type === 'img' ? image.attrs.src : /data:image\/png;base64,[^\s)]+/.exec(content)?.[0]
   expect(src).toMatch(/^data:image\/png;base64,/)
-  return loadImage(Buffer.from(src.split(',')[1], 'base64'))
+  return readPng(Buffer.from(src.split(',')[1], 'base64'))
 }
 
 describe('messages, commands and rendering', () => {
@@ -98,7 +97,7 @@ describe('messages, commands and rendering', () => {
     expect(h.parse(markdown).map(element => element.type)).toEqual(['markdown'])
     expect(markdown).toContain('![封面 #560px #395px](qqbot-media://image/v1/preview-1)')
     const uploaded = fake.calls.find(call => call.url.hostname === 'qq-upload.example.test')!
-    const cover = await loadImage(Buffer.from(uploaded.init.body as Uint8Array))
+    const cover = await readPng(Buffer.from(uploaded.init.body as Uint8Array))
     expect([cover.width, cover.height]).toEqual([560, 395])
     expect(markdown).not.toContain(VIDEO.pic)
     expect(markdown).not.toContain('data:image')

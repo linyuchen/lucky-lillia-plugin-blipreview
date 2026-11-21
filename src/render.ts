@@ -1,9 +1,8 @@
 import qrcode from 'qrcode-generator'
-import type { Image, SKRSContext2D } from '@napi-rs/canvas'
 import type { VideoInfo } from './api.js'
 import { isImageUrl } from './api.js'
+import { draw, FONT, type Context2D, type Drawing, type EmulatedImage } from './skia.js'
 
-const FONT = '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "WenQuanYi Micro Hei", sans-serif'
 const WIDTH = 560
 const COVER_HEIGHT = 315
 
@@ -49,7 +48,7 @@ export function formatMarkdown(info: VideoInfo, summary: string, renderedCover?:
     .filter(Boolean).join('\n\n')
 }
 
-function wrap(context: SKRSContext2D, text: string, width: number, maxLines: number): string[] {
+function wrap(context: Context2D, text: string, width: number, maxLines: number): string[] {
   const lines: string[] = []
   let line = ''
   let truncated = false
@@ -69,133 +68,125 @@ function wrap(context: SKRSContext2D, text: string, width: number, maxLines: num
   return lines
 }
 
-function drawCover(context: SKRSContext2D, image: Image): void {
+function drawCover(context: Context2D, image: EmulatedImage): void {
   const scale = Math.max(WIDTH / image.width, COVER_HEIGHT / image.height)
   const width = WIDTH / scale
   const height = COVER_HEIGHT / scale
   context.drawImage(image, (image.width - width) / 2, (image.height - height) / 2, width, height, 0, 0, WIDTH, COVER_HEIGHT)
 }
 
-async function drawCoverSection(context: SKRSContext2D, info: VideoInfo, cover?: Buffer): Promise<void> {
-  const { loadImage, Path2D } = await import('@napi-rs/canvas')
+function drawCoverSection({ canvas, context, text }: Drawing, info: VideoInfo, cover?: Buffer): void {
   context.save()
   context.fillStyle = '#eef3f8'
   context.fillRect(0, 0, WIDTH, COVER_HEIGHT)
   context.fillStyle = '#00a1d6'
-  context.font = '600 42px ' + FONT
-  context.fillText('bilibili', 205, 175)
+  context.font = '42px ' + FONT
+  text('bilibili', 205, 175)
   if (cover) {
-    try { drawCover(context, await loadImage(cover)) } catch { /* Keep metadata readable if a CDN image is corrupt. */ }
+    try { drawCover(context, canvas.decodeImage(cover)) } catch { /* Keep metadata readable if a CDN image is corrupt. */ }
   }
   context.fillStyle = 'rgba(150, 150, 150, 0.67)'
   context.fillRect(0, COVER_HEIGHT - 50, WIDTH, 50)
   context.fillStyle = '#ffffff'
   context.font = '20px ' + FONT
-  context.textBaseline = 'middle'
   const view = formatCount(info.view)
   const danmakuX = 146 + context.measureText(view).width
   for (const [path, x] of [[ICON_PLAY, 20], [ICON_DANMU, danmakuX]] as const) {
     context.save()
     context.translate(x, COVER_HEIGHT - 36)
     context.scale(22 / 24, 22 / 24)
-    context.fill(new Path2D(path))
+    context.fill(canvas.makePath2D(path))
     context.restore()
   }
-  context.fillText(view, 48, COVER_HEIGHT - 25)
-  context.fillText(formatCount(info.danmu), danmakuX + 28, COVER_HEIGHT - 25)
-  context.textAlign = 'right'
-  context.fillText(info.duration.split(':').map(part => part.padStart(2, '0')).join(':'), WIDTH - 20, COVER_HEIGHT - 25)
+  text(view, 48, COVER_HEIGHT - 25, { middle: 20 })
+  text(formatCount(info.danmu), danmakuX + 28, COVER_HEIGHT - 25, { middle: 20 })
+  text(info.duration.split(':').map(part => part.padStart(2, '0')).join(':'), WIDTH - 20, COVER_HEIGHT - 25, { align: 'right', middle: 20 })
   context.restore()
 }
 
 /** Koishi-style cover: playback statistics on the image, UP and upload time directly below it. */
 export async function renderCover(info: VideoInfo, cover?: Buffer): Promise<Buffer> {
-  const { createCanvas } = await import('@napi-rs/canvas')
-  const measure = createCanvas(WIDTH, 1).getContext('2d')
-  measure.font = '25px ' + FONT
-  const timeWidth = measure.measureText(info.uploadTime).width
-  measure.font = '500 25px ' + FONT
-  const owner = wrap(measure, 'UP: ' + info.owner, WIDTH - 60 - timeWidth, 2)
+  const owner = await draw(1, 1, ({ context }) => {
+    context.font = '25px ' + FONT
+    const timeWidth = context.measureText(info.uploadTime).width
+    return wrap(context, 'UP: ' + info.owner, WIDTH - 60 - timeWidth, 2)
+  })
   const height = COVER_HEIGHT + 48 + owner.length * 32
-  const canvas = createCanvas(WIDTH, height)
-  const context = canvas.getContext('2d')
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, WIDTH, height)
-  await drawCoverSection(context, info, cover)
-  context.fillStyle = '#000000'
-  context.font = '500 25px ' + FONT
-  context.textBaseline = 'middle'
-  for (let i = 0; i < owner.length; i++) context.fillText(owner[i], 20, COVER_HEIGHT + 40 + i * 32)
-  context.fillStyle = '#333333'
-  context.font = '25px ' + FONT
-  context.textAlign = 'right'
-  context.fillText(info.uploadTime, WIDTH - 20, (COVER_HEIGHT + height) / 2)
-  return canvas.encode('png')
+  return draw(WIDTH, height, drawing => {
+    const { context, text } = drawing
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, WIDTH, height)
+    drawCoverSection(drawing, info, cover)
+    context.fillStyle = '#000000'
+    context.font = '25px ' + FONT
+    for (let i = 0; i < owner.length; i++) text(owner[i], 20, COVER_HEIGHT + 40 + i * 32, { middle: 25 })
+    context.fillStyle = '#333333'
+    text(info.uploadTime, WIDTH - 20, (COVER_HEIGHT + height) / 2, { align: 'right', middle: 25 })
+    return drawing.png()
+  })
 }
 
 export async function renderQrcode(url: string, ttl: number): Promise<Buffer> {
-  const { createCanvas } = await import('@napi-rs/canvas')
   const qr = qrcode(0, 'M')
   qr.addData(url)
   qr.make()
   const cell = 7
   const margin = 28
   const size = qr.getModuleCount() * cell + margin * 2
-  const canvas = createCanvas(size, size + 106)
-  const context = canvas.getContext('2d')
-  context.fillStyle = '#ffffff'
-  context.fillRect(0, 0, size, size + 106)
-  context.textAlign = 'center'
-  context.fillStyle = '#00a1d6'
-  context.font = '600 24px ' + FONT
-  context.fillText('B站扫码登录', size / 2, 38)
-  context.fillStyle = '#000000'
-  for (let row = 0; row < qr.getModuleCount(); row++) {
-    for (let col = 0; col < qr.getModuleCount(); col++) {
-      if (qr.isDark(row, col)) context.fillRect(margin + col * cell, 54 + margin + row * cell, cell, cell)
+  return draw(size, size + 106, drawing => {
+    const { context, text } = drawing
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, size, size + 106)
+    context.fillStyle = '#00a1d6'
+    context.font = '24px ' + FONT
+    text('B站扫码登录', size / 2, 38, { align: 'center' })
+    context.fillStyle = '#000000'
+    for (let row = 0; row < qr.getModuleCount(); row++) {
+      for (let col = 0; col < qr.getModuleCount(); col++) {
+        if (qr.isDark(row, col)) context.fillRect(margin + col * cell, 54 + margin + row * cell, cell, cell)
+      }
     }
-  }
-  context.font = '17px ' + FONT
-  context.fillStyle = '#4b5563'
-  context.fillText(ttl + ' 秒内使用手机 B站 App 扫码并确认', size / 2, size + 82)
-  return canvas.encode('png')
+    context.font = '17px ' + FONT
+    context.fillStyle = '#4b5563'
+    text(ttl + ' 秒内使用手机 B站 App 扫码并确认', size / 2, size + 82, { align: 'center' })
+    return drawing.png()
+  })
 }
 
 export async function matchCover(preview: Buffer, covers: { index: number; data: Buffer }[]): Promise<number | undefined> {
-  const { createCanvas, loadImage } = await import('@napi-rs/canvas')
-  const canvas = createCanvas(16, 9)
-  const context = canvas.getContext('2d')
-  const grid = (image: Image, card = false): Uint8ClampedArray => {
-    context.clearRect(0, 0, 16, 9)
-    let x = 0, y = 0, width = image.width, height = image.height
-    // QQ miniapp previews include a header/footer around the 16:9 video thumbnail.
-    if (card && image.width / image.height < 1.5) {
-      width = image.width * 0.92
-      height = Math.min(image.height, width * 9 / 16)
-      x = image.width * 0.04
-      y = Math.max(0, Math.min(image.height * 0.21, image.height - height))
-    }
-    context.drawImage(image, x, y, width, height, 0, 0, 16, 9)
-    return context.getImageData(0, 0, 16, 9).data
-  }
-  const expected = grid(await loadImage(preview), true)
-  let best: { index: number; score: number } | undefined
-  for (const cover of covers) {
-    try {
-      const actual = grid(await loadImage(cover.data))
-      let diff = 0, count = 0
-      for (let y = 0; y < 9; y++) for (let x = 0; x < 16; x++) {
-        // Ignore the overlay controls and caption at the edges of QQ previews.
-        if (y >= 7 || (x >= 13 && y <= 1) || (x >= 7 && x <= 9 && y >= 3 && y <= 5)) continue
-        for (let channel = 0; channel < 3; channel++) {
-          const offset = (y * 16 + x) * 4 + channel
-          diff += Math.abs(expected[offset] - actual[offset])
-          count++
-        }
+  return draw(16, 9, ({ canvas, context }) => {
+    const grid = (image: EmulatedImage, card = false): Uint8ClampedArray => {
+      context.clearRect(0, 0, 16, 9)
+      let x = 0, y = 0, width = image.width, height = image.height
+      // QQ miniapp previews include a header/footer around the 16:9 video thumbnail.
+      if (card && image.width / image.height < 1.5) {
+        width = image.width * 0.92
+        height = Math.min(image.height, width * 9 / 16)
+        x = image.width * 0.04
+        y = Math.max(0, Math.min(image.height * 0.21, image.height - height))
       }
-      const score = 1 - diff / (count * 255)
-      if (!best || score > best.score) best = { index: cover.index, score }
-    } catch { /* A corrupt candidate must not discard the other candidates. */ }
-  }
-  return best && best.score >= 0.72 ? best.index : undefined
+      context.drawImage(image, x, y, width, height, 0, 0, 16, 9)
+      return context.getImageData(0, 0, 16, 9).data
+    }
+    const expected = grid(canvas.decodeImage(preview), true)
+    let best: { index: number; score: number } | undefined
+    for (const cover of covers) {
+      try {
+        const actual = grid(canvas.decodeImage(cover.data))
+        let diff = 0, count = 0
+        for (let y = 0; y < 9; y++) for (let x = 0; x < 16; x++) {
+          // Ignore the overlay controls and caption at the edges of QQ previews.
+          if (y >= 7 || (x >= 13 && y <= 1) || (x >= 7 && x <= 9 && y >= 3 && y <= 5)) continue
+          for (let channel = 0; channel < 3; channel++) {
+            const offset = (y * 16 + x) * 4 + channel
+            diff += Math.abs(expected[offset] - actual[offset])
+            count++
+          }
+        }
+        const score = 1 - diff / (count * 255)
+        if (!best || score > best.score) best = { index: cover.index, score }
+      } catch { /* A corrupt candidate must not discard the other candidates. */ }
+    }
+    return best && best.score >= 0.72 ? best.index : undefined
+  })
 }
