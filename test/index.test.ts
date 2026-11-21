@@ -310,4 +310,15 @@ describe('summaries via the optional AI service', () => {
     fake.route = call => call.url.pathname.endsWith('/conclusion/get') ? json({ code: -352 }) : undefined
     expect((await bot.receive(BVID))[0]).toContain(VIDEO.title)
   })
+
+  it('omits the summary line when B站 has no official summary but distinguishes an expired login', async () => {
+    await setup({ summaryMode: 'official', cacheDuration: 0 })
+    fake.official = ''
+    const bot = app.bot({ features: ['message.markdown'] })
+    const response = (await bot.receive(BVID))[0]
+    expect(response).toContain(VIDEO.title)
+    expect(response).not.toContain('AI 总结')
+    fake.loggedIn = false
+    expect((await bot.receive(BVID))[0]).toContain('AI 总结：B站未登录')
+  })
 })

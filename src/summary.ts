@@ -7,7 +7,8 @@ export async function buildSummary(client: BiliClient, info: VideoInfo, config: 
   if (config.summaryMode === 'official') {
     const summary = await client.officialSummary(info)
     if (summary) return 'AI 总结：' + summary
-    return await client.checkLogin() ? 'AI 总结：此视频暂不支持官方总结' : 'AI 总结：B站未登录'
+    // B站 has no summary for this video: leave the line out instead of saying so
+    return await client.checkLogin() ? '' : 'AI 总结：B站未登录'
   }
   if (!ai || !ai.get(config.model.ai)) return 'AI 总结：请先配置并启用 AI 服务'
   const subtitle = await client.subtitle(info, config.maxSubtitleLength)
