@@ -107,7 +107,11 @@ describe('QR login lifecycle', () => {
     expect(await saved()).toMatchObject({
       cookie: 'SESSDATA=header%2Cvalue; bili_jct=test-csrf; DedeUserID=123456; sid=test-sid', refreshToken: 'test-refresh-token',
     })
-    expect(fake.calls.filter(call => call.url.hostname === 'passport.bilibili.com').every(call => !call.headers.has('cookie'))).toBe(true)
+    // QR login requests never send the old Cookie. The startup renewal check (cookie/info) may
+    // legitimately reach passport.bilibili.com with it, depending on timing.
+    const qrCalls = fake.calls.filter(call => call.url.hostname === 'passport.bilibili.com' && call.url.pathname.includes('/qrcode/'))
+    expect(qrCalls.length).toBeGreaterThan(0)
+    expect(qrCalls.every(call => !call.headers.has('cookie'))).toBe(true)
     expect(bot.sent.map(message => message.content).join('')).not.toContain('123456')
     await fiber.dispose()
     const beforeReload = fake.calls.length

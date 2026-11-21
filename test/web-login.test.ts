@@ -110,7 +110,11 @@ describe('WebUI login', () => {
     expect(JSON.stringify(status)).not.toMatch(/private|SESSDATA|refresh_token|qrcode_key/)
     expect((await call('credentials')).data).toEqual(await credentials.get())
     expect((await call('credentials')).data).toMatchObject({ cookie: expect.stringContaining('private%2Cweb-cookie'), refreshToken: 'private-refresh-token' })
-    expect(fake.calls.filter(call => call.url.hostname === 'passport.bilibili.com').every(call => !call.headers.has('cookie'))).toBe(true)
+    // QR login requests never send the old Cookie. The startup renewal check (cookie/info) may
+    // legitimately reach passport.bilibili.com with it, depending on timing.
+    const qrCalls = fake.calls.filter(call => call.url.hostname === 'passport.bilibili.com' && call.url.pathname.includes('/qrcode/'))
+    expect(qrCalls.length).toBeGreaterThan(0)
+    expect(qrCalls.every(call => !call.headers.has('cookie'))).toBe(true)
   })
 
   it('reads current shared credentials without contacting B站 and returns empty fields after logout', async () => {
