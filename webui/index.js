@@ -1,5 +1,7 @@
 import { createElement as h, useEffect, useRef, useState } from 'react'
-import { SchemaForm, usePluginContext, usePluginStatus } from '@luckylillia-dev/plugin-sdk/webui'
+import { SchemaForm, usePluginContext, usePlugins, usePluginStatus } from '@luckylillia-dev/plugin-sdk/webui'
+
+const AI_PROVIDER_PLUGIN = '@luckylillia-dev/plugin-aiprovider'
 
 const pending = state => ['generating', 'waiting', 'scanned'].includes(state)
 const stack = { display: 'grid', gap: 14 }
@@ -226,6 +228,56 @@ function LoginSection({ value, onChange, errors, draft }) {
   )
 }
 
+export function describeAiProvider(plugins) {
+  if (!plugins) return { ready: false, message: '正在检测「AI 服务」插件状态…' }
+  const entry = plugins.find(item => item.name === AI_PROVIDER_PLUGIN)
+  if (!entry) {
+    return {
+      ready: false,
+      message: '尚未安装「AI 服务」插件（@luckylillia-dev/plugin-aiprovider），请先在插件市场安装并启用后再选择服务和模型。',
+    }
+  }
+  if (entry.disabled) {
+    return {
+      ready: false,
+      message: '「AI 服务」插件当前已停用，请先在插件列表中启用并配置后再选择服务和模型。',
+    }
+  }
+  if (entry.state === 'failed') {
+    return {
+      ready: false,
+      message: `「AI 服务」插件启动失败${entry.error ? `：${entry.error}` : ''}，请在插件列表检查后再选择服务和模型。`,
+    }
+  }
+  if (entry.state !== 'active') {
+    return {
+      ready: false,
+      message: '「AI 服务」插件正在启动，就绪后即可选择服务和模型。',
+    }
+  }
+  return { ready: true, message: '' }
+}
+
+function AiModelSection({ schema, value, onChange, errors }) {
+  const plugins = usePlugins()
+  const status = describeAiProvider(plugins)
+  if (status.ready) return h(SchemaForm, { schema, value, onChange, errors, fields: ['model'] })
+
+  const saved = [value?.model?.ai, value?.model?.model].map(item => typeof item === 'string' ? item.trim() : '').filter(Boolean)
+  const modelError = errors?.model || errors?.['model.ai'] || errors?.['model.model']
+
+  return h('section', {
+    'aria-label': '字幕总结使用的 AI 服务和模型',
+    className: 'rounded-xl border border-theme-divider p-4',
+    style: { display: 'grid', gap: 8 },
+  },
+  h('h4', { className: 'text-sm font-medium text-theme' }, '字幕总结使用的 AI 服务和模型'),
+  h('p', { className: 'text-xs text-theme-muted', role: 'status' }, status.message),
+  saved.length > 0 && h('p', { className: 'text-xs text-theme-secondary' },
+    `当前已保存配置：${saved.join(' / ')}（启用「AI 服务」插件后可切换，直接保存不会丢失）`),
+  modelError && h('p', { className: 'text-xs text-red-500', role: 'alert' }, modelError))
+}
+
 /** @param {import('@luckylillia-dev/plugin-sdk/webui').ConfigEditorProps} props */
 function PreviewEditor({ value, onChange, schema, errors }) {
   const draft = useRef(loginDraft(value))
@@ -239,7 +291,7 @@ function PreviewEditor({ value, onChange, schema, errors }) {
 
   return h('div', { style: { display: 'grid', gap: 20 } },
     form(before),
-    value?.summaryMode === 'llm' && form(['model']),
+    value?.summaryMode === 'llm' && h(AiModelSection, { schema, value, onChange, errors }),
     enabled && h(LoginSection, { value, onChange, errors, draft }),
     value?.summaryMode === 'llm' && form(['maxSubtitleLength']),
     after.length > 0 && form(after),
